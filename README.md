@@ -3,15 +3,14 @@
 ![Python](https://img.shields.io/badge/Python-3.13-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Status](https://img.shields.io/badge/Status-Active-success)
-![Finance](https://img.shields.io/badge/
-Domain-Portfolio%20Analytics-darkgreen)
+![Finance](https://img.shields.io/badge/Domain-Portfolio%20Analytics-darkgreen)
 ![Git](https://img.shields.io/badge/Git-Version%20Controlled-orange)
 
 A professional Python platform for **portfolio analytics, portfolio optimization, Monte Carlo forecasting, risk analysis, and automated Excel reporting**.
 
 The platform demonstrates practical quantitative finance and software engineering techniques used in **investment management, portfolio management, wealth management, capital markets, and financial data analytics**.
 
-Built with a strong emphasis on **modular architecture, reproducible analytics, and professional reporting**, the project combines financial theory with production-quality Python workflows.
+Built with a strong emphasis on **modular architecture, reproducible analytics, and professional reporting**, the platform combines financial theory with structured Python workflows.
 
 ---
 
