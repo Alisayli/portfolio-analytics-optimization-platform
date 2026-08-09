@@ -1,0 +1,29 @@
+{
+"portfolio_weights": {
+    "AAPL": 0.25,
+    "MSFT": 0.25,
+    "NVDA": 0.20,
+    "AMZN": 0.15,
+    "JPM": 0.15
+},
+"analysis": {
+    "start_date": "2025-01-01",
+    "end_date": "2025-02-01",
+    "benchmark_ticker": "SPY"
+},
+"optimization": {
+    "start_date": "2020-02-01",
+    "maximum_weight": 0.40,
+    "number_of_portfolios": 10000,
+    "random_seed": 42
+},
+"monte_carlo": {
+    "starting_value": 100.0,
+    "number_of_days": 252,
+    "number_of_simulations": 10000,
+    "random_seed": 42
+},
+"rolling_metrics": {
+    "window": 5
+}
+}

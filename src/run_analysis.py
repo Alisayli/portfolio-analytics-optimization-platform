@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -58,21 +59,70 @@ from visualization import (
 
 def main() -> None:
 
-    """Test the complete multi-asset portfolio engine."""
+    """Run the complete portfolio analytics pipeline."""
 
-    portfolio_weights = {
-        "AAPL": 0.25,
-        "MSFT": 0.25,
-        "NVDA": 0.20,
-        "AMZN": 0.15,
-        "JPM": 0.15,
-    }
+    project_root = Path(__file__).resolve().parent.parent
+    config_path = project_root / "config.json"
 
-    start_date = "2025-01-01"
-    end_date = "2025-02-01"
-    optimization_start_date = "2020-02-01"
+    with config_path.open(
+        "r",
+        encoding="utf-8",
+    ) as config_file:
+        config = json.load(config_file)
+
+    portfolio_weights = config[
+        "portfolio_weights"
+    ]
+
+    start_date = config[
+        "analysis"
+    ]["start_date"]
+
+    end_date = config[
+        "analysis"
+    ]["end_date"]
+
+    benchmark_ticker = config[
+        "analysis"
+    ]["benchmark_ticker"]
+
+    optimization_start_date = config[
+        "optimization"
+    ]["start_date"]
+
     optimization_end_date = end_date
-    benchmark_ticker = "SPY"
+
+    maximum_weight = config[
+        "optimization"
+    ]["maximum_weight"]
+
+    number_of_portfolios = config[
+        "optimization"
+    ]["number_of_portfolios"]
+    
+    optimization_random_seed = config[
+    "optimization"
+]["random_seed"]
+
+    monte_carlo_starting_value = config[
+        "monte_carlo"
+    ]["starting_value"]
+
+    monte_carlo_number_of_days = config[
+        "monte_carlo"
+    ]["number_of_days"]
+
+    monte_carlo_number_of_simulations = config[
+        "monte_carlo"
+    ]["number_of_simulations"]
+
+    monte_carlo_random_seed = config[
+        "monte_carlo"
+    ]["random_seed"]
+
+    rolling_window = config[
+        "rolling_metrics"
+    ]["window"]
 
     validated_weights = validate_portfolio_weights(
         portfolio_weights
@@ -208,9 +258,9 @@ def main() -> None:
             current_portfolio_statistics["volatility"]
         ),
         starting_value=100.0,
-        number_of_days=252,
-        number_of_simulations=10_000,
-        random_seed=42,
+        number_of_days=monte_carlo_number_of_days,
+        number_of_simulations=monte_carlo_number_of_simulations,
+        random_seed=monte_carlo_random_seed,
     )
 
     monte_carlo_summary = summarize_monte_carlo_results(
@@ -257,11 +307,10 @@ def main() -> None:
         simulate_random_portfolios(
             expected_returns=expected_returns,
             covariance_matrix=covariance_matrix,
-            number_of_portfolios=10_000,
+            number_of_portfolios=number_of_portfolios,
             risk_free_rate=risk_free_rate,
-            maximum_weight=0.40,
-            random_seed=42,
-        )
+            maximum_weight=maximum_weight,
+            random_seed=optimization_random_seed,        )
     )
 
     exact_maximum_sharpe_portfolio = (
@@ -269,7 +318,7 @@ def main() -> None:
             expected_returns=expected_returns,
             covariance_matrix=covariance_matrix,
             risk_free_rate=risk_free_rate,
-            maximum_weight=0.40,
+            maximum_weight=maximum_weight,
         )
     )
 
@@ -278,7 +327,7 @@ def main() -> None:
             expected_returns=expected_returns,
             covariance_matrix=covariance_matrix,
             risk_free_rate=risk_free_rate,
-            maximum_weight=0.40,
+            maximum_weight=maximum_weight,
         )
     )
 
@@ -478,7 +527,7 @@ def main() -> None:
         plot_rolling_volatility(
             portfolio_returns=portfolio_returns,
             output_folder=charts_folder,
-            window=5,
+            window=rolling_window,
         )
     )
 
@@ -487,7 +536,7 @@ def main() -> None:
             portfolio_returns=portfolio_returns,
             risk_free_rate=risk_free_rate,
             output_folder=charts_folder,
-            window=5,
+            window=rolling_window,
         )
     )
     efficient_frontier_chart_file_path = (
@@ -558,7 +607,7 @@ def main() -> None:
         optimization_end_date=(
             optimization_end_date
         ),
-        maximum_weight=0.40,
+        maximum_weight=maximum_weight,
         monte_carlo_summary=monte_carlo_summary,
         output_folder=reports_folder,
     )

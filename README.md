@@ -205,8 +205,7 @@ The project is organized into modular components, with each module responsible f
 | `visualization.py` | Generates publication-quality charts for portfolio analytics, optimization, and forecasting. |
 | `excel_report.py` | Creates a professionally formatted Excel workbook containing portfolio analytics, optimization results, charts, and Monte Carlo forecasts. |
 | `utils.py` | Shared helper functions used throughout the project. |
-| `test_portfolio.py` | End-to-end demonstration of the complete analytics pipeline using a sample portfolio. |
-
+| `run_analysis.py` | End-to-end execution of the complete analytics pipeline using a sample portfolio. |
 ---
 
 ## Workflow
@@ -276,9 +275,8 @@ pip install -r requirements.txt
 Run the complete analytics pipeline:
 
 ```bash
-python src/test_portfolio.py
+python src/run_analysis.py
 ```
-
 The program will:
 
 1. Download historical market data.
@@ -318,7 +316,7 @@ Portfolio-Analytics-Optimization-Platform/
 │   ├── monte_carlo.py
 │   ├── optimization.py
 │   ├── portfolio.py
-│   ├── test_portfolio.py
+│   ├── run_analysis.py
 │   ├── utils.py
 │   └── visualization.py
 │
