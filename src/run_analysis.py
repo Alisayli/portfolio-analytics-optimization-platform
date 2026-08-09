@@ -1,3 +1,4 @@
+import argparse
 import json
 from pathlib import Path
 
@@ -57,19 +58,71 @@ from visualization import (
     plot_rolling_volatility,
 )
 
+
+def parse_arguments() -> argparse.Namespace:
+    """Parse command-line arguments."""
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run portfolio analytics, optimization, "
+            "and Monte Carlo forecasting."
+        )
+    )
+
+    parser.add_argument(
+        "--config",
+        default="config.json",
+        help=(
+            "Path to the JSON configuration file. "
+            "Default: config.json"
+        ),
+    )
+
+    parser.add_argument(
+        "--start-date",
+        help="Override the analysis start date (YYYY-MM-DD).",
+    )
+
+    parser.add_argument(
+        "--end-date",
+        help="Override the analysis end date (YYYY-MM-DD).",
+    )
+
+    parser.add_argument(
+        "--benchmark",
+        help="Override the benchmark ticker.",
+    )
+
+    return parser.parse_args()
+
 def main() -> None:
 
     """Run the complete portfolio analytics pipeline."""
-
+    args = parse_arguments()
+    
     project_root = Path(__file__).resolve().parent.parent
-    config_path = project_root / "config.json"
-
+    config_path = Path(args.config)
+    if not config_path.is_absolute():
+        config_path = project_root / config_path
     with config_path.open(
         "r",
         encoding="utf-8",
     ) as config_file:
         config = json.load(config_file)
+    if args.start_date:
+        config["analysis"]["start_date"] = (
+            args.start_date
+        )
 
+    if args.end_date:
+        config["analysis"]["end_date"] = (
+            args.end_date
+        )
+
+    if args.benchmark:
+        config["analysis"][
+            "benchmark_ticker"
+        ] = args.benchmark.upper()
     portfolio_weights = config[
         "portfolio_weights"
     ]
@@ -310,7 +363,7 @@ def main() -> None:
             number_of_portfolios=number_of_portfolios,
             risk_free_rate=risk_free_rate,
             maximum_weight=maximum_weight,
-            random_seed=optimization_random_seed,        )
+random_seed=optimization_random_seed,        )
     )
 
     exact_maximum_sharpe_portfolio = (
