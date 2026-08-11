@@ -319,3 +319,90 @@ def calculate_positive_day_ratio(
     total_days = len(clean_returns)
 
     return float(positive_days / total_days)
+def calculate_value_at_risk(
+    daily_returns: pd.Series,
+    confidence_level: float = 0.95,
+) -> float:
+    """
+    Calculate historical Value at Risk (VaR).
+
+    Args:
+        daily_returns: Series containing daily portfolio returns.
+        confidence_level: Confidence level used for VaR.
+
+    Returns:
+        Historical VaR as a positive loss magnitude.
+
+    Raises:
+        ValueError: If return data is empty or the confidence
+        level is invalid.
+    """
+
+    clean_returns = daily_returns.dropna()
+
+    if clean_returns.empty:
+        raise ValueError(
+            "Daily-return data cannot be empty."
+        )
+
+    if not 0 < confidence_level < 1:
+        raise ValueError(
+            "Confidence level must be between 0 and 1."
+        )
+
+    tail_probability = 1 - confidence_level
+
+    return_threshold = clean_returns.quantile(
+        tail_probability
+    )
+
+    value_at_risk = -return_threshold
+
+    return float(value_at_risk)
+
+
+def calculate_conditional_value_at_risk(
+    daily_returns: pd.Series,
+    confidence_level: float = 0.95,
+) -> float:
+    """
+    Calculate historical Conditional Value at Risk (CVaR).
+
+    Args:
+        daily_returns: Series containing daily portfolio returns.
+        confidence_level: Confidence level used for CVaR.
+
+    Returns:
+        Historical CVaR as a positive loss magnitude.
+
+    Raises:
+        ValueError: If return data is empty or the confidence
+        level is invalid.
+    """
+
+    clean_returns = daily_returns.dropna()
+
+    if clean_returns.empty:
+        raise ValueError(
+            "Daily-return data cannot be empty."
+        )
+
+    if not 0 < confidence_level < 1:
+        raise ValueError(
+            "Confidence level must be between 0 and 1."
+        )
+
+    value_at_risk = calculate_value_at_risk(
+        clean_returns,
+        confidence_level=confidence_level,
+    )
+
+    return_threshold = -value_at_risk
+
+    tail_losses = clean_returns[
+        clean_returns <= return_threshold
+    ]
+
+    conditional_value_at_risk = -tail_losses.mean()
+
+    return float(conditional_value_at_risk)

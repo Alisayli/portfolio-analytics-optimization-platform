@@ -276,19 +276,6 @@ Run the complete analytics pipeline:
 
 ```bash
 python src/run_analysis.py
-```
-The program will:
-
-1. Download historical market data.
-2. Calculate portfolio performance statistics.
-3. Optimize the portfolio using Modern Portfolio Theory.
-4. Generate the Efficient Frontier.
-5. Run Monte Carlo simulations.
-6. Produce publication-quality charts.
-7. Generate a professional Excel report.
-
-All generated outputs are saved automatically in the appropriate project folders.
-
 ---
 
 ## Repository Structure

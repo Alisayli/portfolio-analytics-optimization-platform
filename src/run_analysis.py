@@ -1,16 +1,18 @@
 import argparse
 import json
+import logging
 from pathlib import Path
-
 import pandas as pd
 
 from analytics import (
     calculate_annualized_return,
     calculate_annualized_volatility,
+    calculate_conditional_value_at_risk,
     calculate_drawdown,
     calculate_maximum_drawdown,
     calculate_sharpe_ratio,
     calculate_total_return,
+    calculate_value_at_risk,
 )
 from download_data import (
     download_multiple_adjusted_closes,
@@ -58,6 +60,13 @@ from visualization import (
     plot_rolling_volatility,
 )
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+
+logger = logging.getLogger(__name__)
 
 def parse_arguments() -> argparse.Namespace:
     """Parse command-line arguments."""
@@ -94,21 +103,28 @@ def parse_arguments() -> argparse.Namespace:
     )
 
     return parser.parse_args()
+def load_configuration(
+    args: argparse.Namespace,
+) -> dict:
+    """Load the application configuration."""
 
-def main() -> None:
+    project_root = (
+        Path(__file__).resolve().parent.parent
+    )
 
-    """Run the complete portfolio analytics pipeline."""
-    args = parse_arguments()
-    
-    project_root = Path(__file__).resolve().parent.parent
     config_path = Path(args.config)
+
     if not config_path.is_absolute():
-        config_path = project_root / config_path
+        config_path = (
+            project_root / config_path
+        )
+
     with config_path.open(
         "r",
         encoding="utf-8",
     ) as config_file:
         config = json.load(config_file)
+
     if args.start_date:
         config["analysis"]["start_date"] = (
             args.start_date
@@ -123,6 +139,307 @@ def main() -> None:
         config["analysis"][
             "benchmark_ticker"
         ] = args.benchmark.upper()
+
+    return config
+def download_input_data(
+    portfolio_weights: dict,
+    start_date: str,
+    end_date: str,
+    optimization_start_date: str,
+    optimization_end_date: str,
+    benchmark_ticker: str,
+):
+    """Download and prepare portfolio input data."""
+
+    validated_weights = validate_portfolio_weights(
+        portfolio_weights
+    )
+
+    price_data = download_multiple_adjusted_closes(
+        tickers=list(validated_weights.keys()),
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+    optimization_price_data = (
+        download_multiple_adjusted_closes(
+            tickers=list(validated_weights.keys()),
+            start_date=optimization_start_date,
+            end_date=optimization_end_date,
+        )
+    )
+
+    benchmark_data = download_stock_data(
+        ticker=benchmark_ticker,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+    benchmark_prices = benchmark_data["Adj Close"]
+
+    return (
+        validated_weights,
+        price_data,
+        optimization_price_data,
+        benchmark_prices,
+    )
+def calculate_portfolio_analytics(
+    price_data: pd.DataFrame,
+    benchmark_prices: pd.Series,
+    validated_weights: dict,
+    benchmark_ticker: str,
+) -> dict:
+    """Calculate portfolio performance and risk analytics."""
+
+    asset_returns = calculate_asset_returns(
+        price_data
+    )
+
+    portfolio_returns = calculate_portfolio_returns(
+        asset_returns=asset_returns,
+        portfolio_weights=validated_weights,
+    )
+
+    portfolio_cumulative_returns = (
+        calculate_portfolio_cumulative_returns(
+            portfolio_returns
+        )
+    )
+
+    final_cumulative_return = (
+        portfolio_cumulative_returns.iloc[-1]
+    )
+
+    portfolio_value = calculate_portfolio_value_index(
+        portfolio_returns=portfolio_returns,
+        initial_date=price_data.index[0],
+        starting_value=100.0,
+    )
+
+    benchmark_value = (
+        benchmark_prices
+        / benchmark_prices.iloc[0]
+        * 100
+    )
+    benchmark_value.name = benchmark_ticker
+
+    asset_contributions = calculate_asset_contributions(
+        asset_returns=asset_returns,
+        portfolio_weights=validated_weights,
+    )
+
+    total_contributions = (
+        calculate_arithmetic_total_contributions(
+            asset_contributions
+        )
+    )
+
+    correlation_matrix = calculate_correlation_matrix(
+        asset_returns
+    )
+
+    total_return = calculate_total_return(
+        portfolio_value
+    )
+
+    return_difference = abs(
+        total_return - final_cumulative_return
+    )
+
+    if return_difference > 1e-10:
+        raise ValueError(
+            "Portfolio total return does not match "
+            "the final cumulative return."
+        )
+
+    annualized_return = calculate_annualized_return(
+        total_return=total_return,
+        number_of_periods=len(portfolio_returns),
+    )
+
+    annualized_volatility = (
+        calculate_annualized_volatility(
+            daily_returns=portfolio_returns,
+        )
+    )
+
+    portfolio_drawdown = calculate_drawdown(
+        portfolio_value
+    )
+
+    maximum_drawdown = calculate_maximum_drawdown(
+        portfolio_value
+    )
+    
+    value_at_risk_95 = calculate_value_at_risk(
+        portfolio_returns,
+        confidence_level=0.95,
+    )
+
+    conditional_value_at_risk_95 = (
+        calculate_conditional_value_at_risk(
+            portfolio_returns,
+            confidence_level=0.95,
+        )
+    )
+
+    value_at_risk_99 = calculate_value_at_risk(
+        portfolio_returns,
+        confidence_level=0.99,
+    )
+
+    conditional_value_at_risk_99 = (
+        calculate_conditional_value_at_risk(
+            portfolio_returns,
+            confidence_level=0.99,
+        )
+    )
+    
+    return {
+        "asset_returns": asset_returns,
+        "portfolio_returns": portfolio_returns,
+        "portfolio_cumulative_returns": (
+            portfolio_cumulative_returns
+        ),
+        "portfolio_value": portfolio_value,
+        "benchmark_value": benchmark_value,
+        "asset_contributions": asset_contributions,
+        "total_contributions": total_contributions,
+        "correlation_matrix": correlation_matrix,
+        "total_return": total_return,
+        "return_difference": return_difference,
+        "annualized_return": annualized_return,
+        "annualized_volatility": annualized_volatility,
+        "portfolio_drawdown": portfolio_drawdown,
+        "maximum_drawdown": maximum_drawdown,
+        "value_at_risk_95": value_at_risk_95,
+        "conditional_value_at_risk_95": (
+            conditional_value_at_risk_95
+        ),
+        "value_at_risk_99": value_at_risk_99,
+        "conditional_value_at_risk_99": (
+            conditional_value_at_risk_99
+        ),
+        
+        
+    }
+    
+def run_optimization_and_forecast(
+    optimization_asset_returns: pd.DataFrame,
+    validated_weights: dict,
+    risk_free_rate: float,
+    maximum_weight: float,
+    number_of_portfolios: int,
+    optimization_random_seed: int,
+    monte_carlo_starting_value: float,
+    monte_carlo_number_of_days: int,
+    monte_carlo_number_of_simulations: int,
+    monte_carlo_random_seed: int,
+) -> dict:
+    """Run portfolio optimization and Monte Carlo forecasting."""
+
+    expected_returns = calculate_expected_returns(
+        optimization_asset_returns
+    )
+
+    covariance_matrix = calculate_covariance_matrix(
+        optimization_asset_returns
+    )
+
+    current_portfolio_statistics = (
+        calculate_portfolio_statistics(
+            weights=list(validated_weights.values()),
+            expected_returns=expected_returns,
+            covariance_matrix=covariance_matrix,
+            risk_free_rate=risk_free_rate,
+        )
+    )
+
+    monte_carlo_paths = simulate_portfolio_paths(
+        annualized_return=(
+            current_portfolio_statistics["return"]
+        ),
+        annualized_volatility=(
+            current_portfolio_statistics["volatility"]
+        ),
+        starting_value=monte_carlo_starting_value,
+        number_of_days=monte_carlo_number_of_days,
+        number_of_simulations=(
+            monte_carlo_number_of_simulations
+        ),
+        random_seed=monte_carlo_random_seed,
+    )
+
+    monte_carlo_summary = summarize_monte_carlo_results(
+        simulated_paths=monte_carlo_paths,
+        starting_value=monte_carlo_starting_value,
+    )
+
+    simulated_portfolios = simulate_random_portfolios(
+        expected_returns=expected_returns,
+        covariance_matrix=covariance_matrix,
+        number_of_portfolios=number_of_portfolios,
+        risk_free_rate=risk_free_rate,
+        maximum_weight=maximum_weight,
+        random_seed=optimization_random_seed,
+    )
+
+    exact_maximum_sharpe_portfolio = (
+        optimize_maximum_sharpe(
+            expected_returns=expected_returns,
+            covariance_matrix=covariance_matrix,
+            risk_free_rate=risk_free_rate,
+            maximum_weight=maximum_weight,
+        )
+    )
+
+    exact_minimum_volatility_portfolio = (
+        optimize_minimum_volatility(
+            expected_returns=expected_returns,
+            covariance_matrix=covariance_matrix,
+            risk_free_rate=risk_free_rate,
+            maximum_weight=maximum_weight,
+        )
+    )
+
+    maximum_sharpe_portfolio = simulated_portfolios.loc[
+        simulated_portfolios["Sharpe Ratio"].idxmax()
+    ]
+
+    minimum_volatility_portfolio = simulated_portfolios.loc[
+        simulated_portfolios["Volatility"].idxmin()
+    ]
+
+    return {
+        "expected_returns": expected_returns,
+        "covariance_matrix": covariance_matrix,
+        "current_portfolio_statistics": (
+            current_portfolio_statistics
+        ),
+        "monte_carlo_paths": monte_carlo_paths,
+        "monte_carlo_summary": monte_carlo_summary,
+        "simulated_portfolios": simulated_portfolios,
+        "exact_maximum_sharpe_portfolio": (
+            exact_maximum_sharpe_portfolio
+        ),
+        "exact_minimum_volatility_portfolio": (
+            exact_minimum_volatility_portfolio
+        ),
+        "maximum_sharpe_portfolio": (
+            maximum_sharpe_portfolio
+        ),
+        "minimum_volatility_portfolio": (
+            minimum_volatility_portfolio
+        ),
+    }
+
+def main() -> None:
+
+    """Run the complete portfolio analytics pipeline."""
+    args = parse_arguments()
+    logger.info("Starting portfolio analytics pipeline.")
+    config = load_configuration(args)
+
     portfolio_weights = config[
         "portfolio_weights"
     ]
@@ -152,7 +469,7 @@ def main() -> None:
     number_of_portfolios = config[
         "optimization"
     ]["number_of_portfolios"]
-    
+
     optimization_random_seed = config[
     "optimization"
 ]["random_seed"]
@@ -176,150 +493,141 @@ def main() -> None:
     rolling_window = config[
         "rolling_metrics"
     ]["window"]
+    logger.info("Downloading market data.")
 
-    validated_weights = validate_portfolio_weights(
-        portfolio_weights
-    )
+    (
+        validated_weights,
+        price_data,
+        optimization_price_data,
+        benchmark_prices,
+    ) = download_input_data(
 
-    price_data = download_multiple_adjusted_closes(
-        tickers=list(validated_weights.keys()),
+        portfolio_weights=portfolio_weights,
         start_date=start_date,
         end_date=end_date,
-    )
-    optimization_price_data = (
-        download_multiple_adjusted_closes(
-            tickers=list(validated_weights.keys()),
-            start_date=optimization_start_date,
-            end_date=optimization_end_date,
-        )
+        optimization_start_date=optimization_start_date,
+        optimization_end_date=optimization_end_date,
+        benchmark_ticker=benchmark_ticker,
     )
 
-    benchmark_data = download_stock_data(
-        ticker=benchmark_ticker,
-        start_date=start_date,
-        end_date=end_date,
-    )
 
-    benchmark_prices = benchmark_data["Adj Close"]
-
-
-    asset_returns = calculate_asset_returns(price_data)
     optimization_asset_returns = (
         calculate_asset_returns(
             optimization_price_data
         )
     )
-
-    portfolio_returns = calculate_portfolio_returns(
-        asset_returns=asset_returns,
-        portfolio_weights=validated_weights,
+    portfolio_analytics = calculate_portfolio_analytics(
+        price_data=price_data,
+        benchmark_prices=benchmark_prices,
+        validated_weights=validated_weights,
+        benchmark_ticker=benchmark_ticker,
     )
 
-    portfolio_cumulative_returns = (
-        calculate_portfolio_cumulative_returns(
-            portfolio_returns
-        )
-    )
+    asset_returns = portfolio_analytics["asset_returns"]
+    portfolio_returns = portfolio_analytics["portfolio_returns"]
+    portfolio_cumulative_returns = portfolio_analytics[
+        "portfolio_cumulative_returns"
+    ]
+    portfolio_value = portfolio_analytics["portfolio_value"]
+    benchmark_value = portfolio_analytics["benchmark_value"]
+    asset_contributions = portfolio_analytics[
+        "asset_contributions"
+    ]
+    total_contributions = portfolio_analytics[
+        "total_contributions"
+    ]
+    correlation_matrix = portfolio_analytics[
+        "correlation_matrix"
+    ]
+    total_return = portfolio_analytics["total_return"]
+    annualized_return = portfolio_analytics[
+        "annualized_return"
+    ]
+    return_difference = portfolio_analytics[
+    "return_difference"
+    ]
+    annualized_volatility = portfolio_analytics[
+        "annualized_volatility"
+    ]
+    portfolio_drawdown = portfolio_analytics[
+        "portfolio_drawdown"
+    ]
+    maximum_drawdown = portfolio_analytics[
+        "maximum_drawdown"
+    ]
+    value_at_risk_95 = portfolio_analytics[
+        "value_at_risk_95"
+    ]
 
-    final_cumulative_return = portfolio_cumulative_returns.iloc[-1]
+    conditional_value_at_risk_95 = portfolio_analytics[
+        "conditional_value_at_risk_95"
+    ]
 
-    portfolio_value = calculate_portfolio_value_index(
-        portfolio_returns=portfolio_returns,
-        initial_date=price_data.index[0],
-        starting_value=100.0,
-    )
+    value_at_risk_99 = portfolio_analytics[
+        "value_at_risk_99"
+    ]
 
-    benchmark_value = (
-        benchmark_prices
-        / benchmark_prices.iloc[0]
-        * 100
-    )
-
-    benchmark_value.name = benchmark_ticker
-
-    asset_contributions = calculate_asset_contributions(
-        asset_returns=asset_returns,
-        portfolio_weights=validated_weights,
-    )
-
-    total_contributions = (
-        calculate_arithmetic_total_contributions(
-            asset_contributions
-        )
-    )
-
-    correlation_matrix = calculate_correlation_matrix(
-        asset_returns
-    )
-
-    total_return = calculate_total_return(
-        portfolio_value
-    )
-    return_difference = abs(
-        total_return - final_cumulative_return
-    )
-
-    if return_difference > 1e-10:
-        raise ValueError(
-            "Portfolio total return does not match "
-            "the final cumulative return."
-        )
-    annualized_return = calculate_annualized_return(
-        total_return=total_return,
-        number_of_periods=len(portfolio_returns),
-    )
-
-    annualized_volatility = calculate_annualized_volatility(
-        daily_returns=portfolio_returns,
-    )
-
-    portfolio_drawdown = calculate_drawdown(
-        portfolio_value
-    )
-
-    maximum_drawdown = calculate_maximum_drawdown(
-        portfolio_value
-    )
-
+    conditional_value_at_risk_99 = portfolio_analytics[
+        "conditional_value_at_risk_99"
+    ]
     risk_free_rate = download_risk_free_rate(
         start_date=start_date,
         end_date=end_date,
     )
-
-    expected_returns = calculate_expected_returns(
-        optimization_asset_returns
-    )
-    covariance_matrix = calculate_covariance_matrix(
-        optimization_asset_returns
+    logger.info(
+        "Running optimization and Monte Carlo forecast."
     )
 
-    current_portfolio_statistics = (
-        calculate_portfolio_statistics(
-            weights=list(
-                validated_weights.values()
-            ),
-            expected_returns=expected_returns,
-            covariance_matrix=covariance_matrix,
-            risk_free_rate=risk_free_rate,
-        )
-    )
-    monte_carlo_paths = simulate_portfolio_paths(
-        annualized_return=(
-            current_portfolio_statistics["return"]
+    optimization_results = run_optimization_and_forecast(
+        optimization_asset_returns=optimization_asset_returns,
+        validated_weights=validated_weights,
+        risk_free_rate=risk_free_rate,
+        maximum_weight=maximum_weight,
+        number_of_portfolios=number_of_portfolios,
+        optimization_random_seed=optimization_random_seed,
+        monte_carlo_starting_value=monte_carlo_starting_value,
+        monte_carlo_number_of_days=monte_carlo_number_of_days,
+        monte_carlo_number_of_simulations=(
+            monte_carlo_number_of_simulations
         ),
-        annualized_volatility=(
-            current_portfolio_statistics["volatility"]
-        ),
-        starting_value=100.0,
-        number_of_days=monte_carlo_number_of_days,
-        number_of_simulations=monte_carlo_number_of_simulations,
-        random_seed=monte_carlo_random_seed,
+        monte_carlo_random_seed=monte_carlo_random_seed,
     )
 
-    monte_carlo_summary = summarize_monte_carlo_results(
-        simulated_paths=monte_carlo_paths,
-        starting_value=100.0,
+    expected_returns = optimization_results[
+        "expected_returns"
+    ]
+    covariance_matrix = optimization_results[
+        "covariance_matrix"
+    ]
+    current_portfolio_statistics = optimization_results[
+        "current_portfolio_statistics"
+    ]
+    monte_carlo_paths = optimization_results[
+        "monte_carlo_paths"
+    ]
+    monte_carlo_summary = optimization_results[
+        "monte_carlo_summary"
+    ]
+    simulated_portfolios = optimization_results[
+        "simulated_portfolios"
+    ]
+    exact_maximum_sharpe_portfolio = (
+        optimization_results[
+            "exact_maximum_sharpe_portfolio"
+        ]
     )
+    exact_minimum_volatility_portfolio = (
+        optimization_results[
+            "exact_minimum_volatility_portfolio"
+        ]
+    )
+    maximum_sharpe_portfolio = optimization_results[
+        "maximum_sharpe_portfolio"
+    ]
+    minimum_volatility_portfolio = optimization_results[
+        "minimum_volatility_portfolio"
+    ]
+
     print("\nMonte Carlo forecast:")
 
     print(
@@ -355,49 +663,6 @@ def main() -> None:
     print(
         f"5th-percentile downside: "
         f"{monte_carlo_summary['downside_value_at_risk']:.2f}"
-    )
-    simulated_portfolios = (
-        simulate_random_portfolios(
-            expected_returns=expected_returns,
-            covariance_matrix=covariance_matrix,
-            number_of_portfolios=number_of_portfolios,
-            risk_free_rate=risk_free_rate,
-            maximum_weight=maximum_weight,
-random_seed=optimization_random_seed,        )
-    )
-
-    exact_maximum_sharpe_portfolio = (
-        optimize_maximum_sharpe(
-            expected_returns=expected_returns,
-            covariance_matrix=covariance_matrix,
-            risk_free_rate=risk_free_rate,
-            maximum_weight=maximum_weight,
-        )
-    )
-
-    exact_minimum_volatility_portfolio = (
-        optimize_minimum_volatility(
-            expected_returns=expected_returns,
-            covariance_matrix=covariance_matrix,
-            risk_free_rate=risk_free_rate,
-            maximum_weight=maximum_weight,
-        )
-    )
-
-    maximum_sharpe_portfolio = (
-        simulated_portfolios.loc[
-            simulated_portfolios[
-                "Sharpe Ratio"
-            ].idxmax()
-        ]
-    )
-
-    minimum_volatility_portfolio = (
-        simulated_portfolios.loc[
-            simulated_portfolios[
-                "Volatility"
-            ].idxmin()
-        ]
     )
 
     print("\nOptimization statistics:")
@@ -625,6 +890,14 @@ random_seed=optimization_random_seed,        )
         "risk_free_rate": risk_free_rate,
         "sharpe_ratio": sharpe_ratio,
         "maximum_drawdown": maximum_drawdown,
+        "value_at_risk_95": value_at_risk_95,
+        "conditional_value_at_risk_95": (
+            conditional_value_at_risk_95
+        ),
+        "value_at_risk_99": value_at_risk_99,
+        "conditional_value_at_risk_99": (
+            conditional_value_at_risk_99
+        ),
         "largest_contributor": largest_contributor,
         "largest_detractor": largest_detractor,
     }
@@ -702,7 +975,26 @@ random_seed=optimization_random_seed,        )
         f"Maximum drawdown: "
         f"{portfolio_summary['maximum_drawdown']:.2%}"
     )
+    print(
+        f"95% Historical VaR: "
+        f"{portfolio_summary['value_at_risk_95']:.2%}"
+    )
 
+    print(
+        f"95% Historical CVaR: "
+        f"{portfolio_summary['conditional_value_at_risk_95']:.2%}"
+    )
+
+    print(
+        f"99% Historical VaR: "
+        f"{portfolio_summary['value_at_risk_99']:.2%}"
+    )
+
+    print(
+        f"99% Historical CVaR: "
+        f"{portfolio_summary['conditional_value_at_risk_99']:.2%}"
+    )
+    
     print("\nArithmetic contribution by asset:")
     for ticker, contribution in total_contributions.items():
         print(f"{ticker}: {contribution:.2%}")
@@ -770,6 +1062,18 @@ random_seed=optimization_random_seed,        )
         f"Excel report saved to: "
         f"{excel_report_file_path}"
     )
-    
+    logger.info("Analysis completed successfully.")
+
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except FileNotFoundError as exc:
+        logger.error("Required file not found: %s", exc)
+    except json.JSONDecodeError as exc:
+        logger.error("Invalid JSON configuration: %s", exc)
+    except ValueError as exc:
+        logger.error("Invalid analysis input: %s", exc)
+    except KeyboardInterrupt:
+        logger.warning("Analysis interrupted by user.")
+    except Exception:
+        logger.exception("Unexpected error during analysis.")

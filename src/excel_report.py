@@ -302,8 +302,13 @@ def build_risk_sheet(
     worksheet["A5"] = "Sharpe Ratio"
     worksheet["A6"] = "Maximum Drawdown"
     worksheet["A7"] = "Risk-Free Rate"
-
+    worksheet["A8"] = "95% Historical VaR"
+    worksheet["A9"] = "95% Historical CVaR"
+    worksheet["A10"] = "99% Historical VaR"
+    worksheet["A11"] = "99% Historical CVaR"
     worksheet["B4"] = portfolio_summary[
+        
+        
         "annualized_volatility"
     ]
     worksheet["B5"] = portfolio_summary[
@@ -315,7 +320,19 @@ def build_risk_sheet(
     worksheet["B7"] = portfolio_summary[
         "risk_free_rate"
     ]
-
+    worksheet["B8"] = portfolio_summary[
+        "value_at_risk_95"
+    ]
+    worksheet["B9"] = portfolio_summary[
+        "conditional_value_at_risk_95"
+    ]
+    worksheet["B10"] = portfolio_summary[
+        "value_at_risk_99"
+    ]
+    worksheet["B11"] = portfolio_summary[
+        "conditional_value_at_risk_99"
+    ]
+    
     worksheet.merge_cells("A1:B1")
 
     worksheet["A1"].fill = title_fill
@@ -328,20 +345,24 @@ def build_risk_sheet(
         cell.font = header_font
         cell.alignment = header_alignment
 
-    for row_number in range(4, 8):
+    for row_number in range(4, 12):
         worksheet[f"A{row_number}"].font = label_font
 
     worksheet["B4"].number_format = "0.00%"
     worksheet["B5"].number_format = "0.00"
     worksheet["B6"].number_format = "0.00%"
     worksheet["B7"].number_format = "0.00%"
+    worksheet["B8"].number_format = "0.00%"
+    worksheet["B9"].number_format = "0.00%"
+    worksheet["B10"].number_format = "0.00%"
+    worksheet["B11"].number_format = "0.00%"
 
     if worksheet["B6"].value < 0:
         worksheet["B6"].font = negative_font
 
     apply_thin_borders(
         worksheet=worksheet,
-        cell_range="A3:B7",
+        cell_range="A3:B11",
     )
 
     auto_size_columns(worksheet)
