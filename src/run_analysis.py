@@ -8,6 +8,7 @@ from analytics import (
     calculate_annualized_return,
     calculate_annualized_volatility,
     calculate_beta,
+    calculate_calmar_ratio,
     calculate_capm_expected_return,
     calculate_conditional_value_at_risk,
     calculate_daily_returns,
@@ -16,8 +17,10 @@ from analytics import (
     calculate_jensens_alpha,
     calculate_maximum_drawdown,
     calculate_sharpe_ratio,
+    calculate_sortino_ratio,
     calculate_total_return,
     calculate_tracking_error,
+    calculate_treynor_ratio,
     calculate_value_at_risk,
 )
 
@@ -690,7 +693,12 @@ def main() -> None:
     ]   
     market_metrics_available = (
         len(portfolio_returns) >= 252
-    ) 
+    )
+    treynor_ratio = calculate_treynor_ratio(
+        annualized_return=annualized_return,
+        risk_free_rate=risk_free_rate,
+        beta=beta,
+    )
     logger.info(
         "Running optimization and Monte Carlo forecast."
     )
@@ -890,6 +898,16 @@ def main() -> None:
         annualized_volatility=annualized_volatility,
         risk_free_rate=risk_free_rate,
     )
+    sortino_ratio = calculate_sortino_ratio(
+        annualized_return=annualized_return,
+        daily_returns=portfolio_returns,
+        risk_free_rate=risk_free_rate,
+    )
+
+    calmar_ratio = calculate_calmar_ratio(
+        annualized_return=annualized_return,
+        maximum_drawdown=maximum_drawdown,
+    )
 
     largest_contributor = total_contributions.idxmax()
     largest_detractor = total_contributions.idxmin()
@@ -1006,6 +1024,9 @@ def main() -> None:
         "annualized_volatility": annualized_volatility,
         "risk_free_rate": risk_free_rate,
         "sharpe_ratio": sharpe_ratio,
+        "sortino_ratio": sortino_ratio,
+        "calmar_ratio": calmar_ratio,
+        "treynor_ratio": treynor_ratio,
         "maximum_drawdown": maximum_drawdown,
         "value_at_risk_95": value_at_risk_95,
         "conditional_value_at_risk_95": (
@@ -1098,6 +1119,15 @@ def main() -> None:
         f"{portfolio_summary['sharpe_ratio']:.2f}"
     )
     print(
+        f"Sortino ratio: "
+        f"{portfolio_summary['sortino_ratio']:.2f}"
+    )
+
+    print(
+        f"Calmar ratio: "
+        f"{portfolio_summary['calmar_ratio']:.2f}"
+    )
+    print(
         f"Maximum drawdown: "
         f"{portfolio_summary['maximum_drawdown']:.2%}"
     )
@@ -1131,6 +1161,10 @@ def main() -> None:
         f"Portfolio beta: "
         f"{portfolio_summary['beta']:.2f}"
     )
+    print(
+    f"Treynor ratio: "
+    f"{portfolio_summary['treynor_ratio']:.2f}"
+    )   
 
     if portfolio_summary["market_metrics_available"]:
         print(

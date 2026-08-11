@@ -601,3 +601,161 @@ def calculate_information_ratio(
     )
 
     return float(information_ratio)
+
+def calculate_sortino_ratio(
+    annualized_return: float,
+    daily_returns: pd.Series,
+    risk_free_rate: float,
+    periods_per_year: int = TRADING_DAYS_PER_YEAR,
+) -> float:
+    """
+    Calculate the annualized Sortino ratio.
+
+    Args:
+        annualized_return:
+            Annualized portfolio return as a decimal.
+        daily_returns:
+            Series containing daily portfolio returns.
+        risk_free_rate:
+            Annualized risk-free rate as a decimal.
+        periods_per_year:
+            Number of trading periods used for annualization.
+
+    Returns:
+        Annualized Sortino ratio.
+
+    Raises:
+        ValueError: If return data is insufficient, periods_per_year
+        is invalid, or downside deviation is zero.
+    """
+
+    clean_returns = daily_returns.dropna()
+
+    if clean_returns.empty:
+        raise ValueError(
+            "Daily-return data cannot be empty."
+        )
+
+    if periods_per_year <= 0:
+        raise ValueError(
+            "Periods per year must be positive."
+        )
+
+    daily_target_return = (
+        (1 + risk_free_rate)
+        ** (1 / periods_per_year)
+        - 1
+    )
+
+    downside_returns = clean_returns[
+        clean_returns < daily_target_return
+    ]
+
+    if downside_returns.empty:
+        raise ValueError(
+            "No downside returns are available."
+        )
+
+    downside_deviation = (
+        (
+            (
+                downside_returns
+                - daily_target_return
+            ) ** 2
+        ).mean()
+        ** 0.5
+    )
+
+    annualized_downside_deviation = (
+        downside_deviation
+        * periods_per_year ** 0.5
+    )
+
+    if annualized_downside_deviation == 0:
+        raise ValueError(
+            "Downside deviation must be greater than zero."
+        )
+
+    excess_return = (
+        annualized_return
+        - risk_free_rate
+    )
+
+    sortino_ratio = (
+        excess_return
+        / annualized_downside_deviation
+    )
+
+    return float(sortino_ratio)
+
+def calculate_calmar_ratio(
+    annualized_return: float,
+    maximum_drawdown: float,
+) -> float:
+    """
+    Calculate the Calmar ratio.
+
+    Args:
+        annualized_return:
+            Annualized portfolio return as a decimal.
+        maximum_drawdown:
+            Maximum portfolio drawdown as a negative decimal.
+
+    Returns:
+        Calmar ratio.
+
+    Raises:
+        ValueError: If maximum drawdown is zero.
+    """
+
+    if maximum_drawdown == 0:
+        raise ValueError(
+            "Maximum drawdown must be non-zero."
+        )
+
+    calmar_ratio = (
+        annualized_return
+        / abs(maximum_drawdown)
+    )
+
+    return float(calmar_ratio)
+
+def calculate_treynor_ratio(
+    annualized_return: float,
+    risk_free_rate: float,
+    beta: float,
+) -> float:
+    """
+    Calculate the Treynor ratio.
+
+    Args:
+        annualized_return:
+            Annualized portfolio return as a decimal.
+        risk_free_rate:
+            Annualized risk-free rate as a decimal.
+        beta:
+            Portfolio beta.
+
+    Returns:
+        Treynor ratio.
+
+    Raises:
+        ValueError: If beta is zero.
+    """
+
+    if beta == 0:
+        raise ValueError(
+            "Portfolio beta must be non-zero."
+        )
+
+    excess_return = (
+        annualized_return
+        - risk_free_rate
+    )
+
+    treynor_ratio = (
+        excess_return
+        / beta
+    )
+
+    return float(treynor_ratio)
