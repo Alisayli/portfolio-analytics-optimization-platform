@@ -642,6 +642,93 @@ def build_optimization_sheet(
 
     auto_size_columns(worksheet)
     worksheet.freeze_panes = "A3"
+def build_rebalancing_sheet(
+    worksheet,
+    portfolio_summary: dict,
+    title_fill,
+    title_font,
+    title_alignment,
+    header_fill,
+    header_font,
+    header_alignment,
+    label_font,
+) -> None:
+    """Build and format the Rebalancing worksheet."""
+
+    worksheet["A1"] = "Portfolio Rebalancing"
+    worksheet.merge_cells("A1:F1")
+
+    worksheet["A1"].fill = title_fill
+    worksheet["A1"].font = title_font
+    worksheet["A1"].alignment = title_alignment
+    worksheet.row_dimensions[1].height = 24
+
+    worksheet["A3"] = "Rebalancing Required"
+    worksheet["B3"] = (
+        "Yes"
+        if portfolio_summary["portfolio_needs_rebalancing"]
+        else "No"
+    )
+
+    worksheet["A5"] = "Ticker"
+    worksheet["B5"] = "Target Weight"
+    worksheet["C5"] = "Current Weight"
+    worksheet["D5"] = "Drift"
+    worksheet["E5"] = "Action"
+    worksheet["F5"] = "Trade Weight"
+
+    for cell in worksheet[5]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = header_alignment
+
+    recommendations = portfolio_summary[
+        "rebalancing_recommendations"
+    ]
+    trades = portfolio_summary[
+        "rebalancing_trades"
+    ]
+
+    for row_number, ticker in enumerate(
+        recommendations,
+        start=6,
+    ):
+        recommendation = recommendations[ticker]
+        trade = trades[ticker]
+
+        worksheet[f"A{row_number}"] = ticker
+        worksheet[f"B{row_number}"] = recommendation[
+            "target_weight"
+        ]
+        worksheet[f"C{row_number}"] = recommendation[
+            "current_weight"
+        ]
+        worksheet[f"D{row_number}"] = recommendation[
+            "weight_drift"
+        ]
+        worksheet[f"E{row_number}"] = recommendation[
+            "action"
+        ]
+        worksheet[f"F{row_number}"] = trade[
+            "trade_weight"
+        ]
+
+        for column in ("B", "C", "D", "F"):
+            worksheet[
+                f"{column}{row_number}"
+            ].number_format = "0.00%"
+
+    last_row = 5 + len(recommendations)
+
+    worksheet["A3"].font = label_font
+
+    apply_thin_borders(
+        worksheet=worksheet,
+        cell_range=f"A5:F{last_row}",
+    )
+
+    auto_size_columns(worksheet)
+    worksheet.freeze_panes = "A6"
 
 def create_portfolio_workbook(
     portfolio_summary: dict,
@@ -699,6 +786,9 @@ def create_portfolio_workbook(
 
     risk_sheet = workbook.create_sheet(
         title="Risk",
+    )
+    rebalancing_sheet = workbook.create_sheet(
+        title="Rebalancing",
     )
 
     optimization_sheet = workbook.create_sheet(
@@ -796,6 +886,19 @@ def create_portfolio_workbook(
         header_alignment=header_alignment,
         negative_font=negative_font,
     )
+
+    build_rebalancing_sheet(
+        worksheet=rebalancing_sheet,
+        portfolio_summary=portfolio_summary,
+        title_fill=title_fill,
+        title_font=title_font,
+        title_alignment=title_alignment,
+        header_fill=header_fill,
+        header_font=header_font,
+        header_alignment=header_alignment,
+        label_font=label_font,
+    )
+
     build_optimization_sheet(
         worksheet=optimization_sheet,
         current_portfolio_statistics=(
@@ -811,7 +914,7 @@ def create_portfolio_workbook(
         optimization_start_date=(
             optimization_start_date
         ),
-                optimization_end_date=(
+        optimization_end_date=(
             optimization_end_date
         ),
         maximum_weight=maximum_weight,
@@ -824,6 +927,7 @@ def create_portfolio_workbook(
         header_alignment=header_alignment,
         label_font=label_font,
     )
+
     build_charts_sheet(
         worksheet=charts_sheet,
         chart_file_paths=chart_file_paths,

@@ -914,5 +914,191 @@ def calculate_active_return(
 
     return float(active_return)
 
+def calculate_current_portfolio_weights(
+    price_data: pd.DataFrame,
+    initial_weights: dict,
+) -> dict:
+    """
+    Calculate current portfolio weights after asset-price drift.
+
+    Args:
+        price_data:
+            DataFrame containing historical adjusted close prices.
+        initial_weights:
+            Dictionary containing initial portfolio weights.
+
+    Returns:
+        Dictionary containing current portfolio weights.
+
+    Raises:
+        ValueError: If price data is empty or required tickers
+        are missing.
+    """
+
+    if price_data.empty:
+        raise ValueError(
+            "Price data cannot be empty."
+        )
+
+    missing_tickers = set(initial_weights) - set(
+        price_data.columns
+    )
+
+    if missing_tickers:
+        raise ValueError(
+            f"Missing price data for: {sorted(missing_tickers)}"
+        )
+
+    growth_factors = (
+        price_data.iloc[-1]
+        / price_data.iloc[0]
+    )
+
+    ending_values = {
+        ticker: (
+            weight * growth_factors[ticker]
+        )
+        for ticker, weight in initial_weights.items()
+    }
+
+    total_ending_value = sum(
+        ending_values.values()
+    )
+
+    current_weights = {
+        ticker: (
+            ending_value / total_ending_value
+        )
+        for ticker, ending_value in ending_values.items()
+    }
+
+    return current_weights
+
+def calculate_rebalancing_recommendations(
+    target_weights: dict,
+    current_weights: dict,
+    threshold: float = 0.05,
+) -> dict:
+    """
+    Calculate portfolio rebalancing recommendations.
+
+    Args:
+        target_weights:
+            Dictionary containing target portfolio weights.
+        current_weights:
+            Dictionary containing current portfolio weights.
+        threshold:
+            Absolute weight-drift threshold required
+            to trigger a Buy or Sell recommendation.
+
+    Returns:
+        Dictionary containing target weight, current weight,
+        weight drift, and recommended action for each asset.
+
+    Raises:
+        ValueError: If threshold is negative or portfolio
+        tickers do not match.
+    """
+
+    if threshold < 0:
+        raise ValueError(
+            "Rebalancing threshold cannot be negative."
+        )
+
+    if set(target_weights) != set(current_weights):
+        raise ValueError(
+            "Target and current portfolio tickers must match."
+        )
+
+    recommendations = {}
+
+    for ticker in target_weights:
+        target_weight = target_weights[ticker]
+        current_weight = current_weights[ticker]
+
+        weight_drift = (
+            current_weight - target_weight
+        )
+
+        if weight_drift > threshold:
+            action = "Sell"
+        elif weight_drift < -threshold:
+            action = "Buy"
+        else:
+            action = "Hold"
+
+        recommendations[ticker] = {
+            "target_weight": target_weight,
+            "current_weight": current_weight,
+            "weight_drift": weight_drift,
+            "action": action,
+        }
+
+    return recommendations
 
 
+def calculate_rebalancing_trades(
+    target_weights: dict,
+    current_weights: dict,
+    threshold: float = 0.05,
+) -> dict:
+    """
+    Calculate recommended portfolio rebalancing trades.
+
+    Args:
+        target_weights:
+            Dictionary containing target portfolio weights.
+        current_weights:
+            Dictionary containing current portfolio weights.
+        threshold:
+            Absolute weight-drift threshold required
+            to trigger a trade.
+
+    Returns:
+        Dictionary containing the recommended trade weight
+        and direction for each asset.
+
+    Raises:
+        ValueError: If threshold is negative or portfolio
+        tickers do not match.
+    """
+
+    if threshold < 0:
+        raise ValueError(
+            "Rebalancing threshold cannot be negative."
+        )
+
+    if set(target_weights) != set(current_weights):
+        raise ValueError(
+            "Target and current portfolio tickers must match."
+        )
+
+    trades = {}
+
+    for ticker in target_weights:
+        target_weight = target_weights[ticker]
+        current_weight = current_weights[ticker]
+
+        weight_drift = (
+            current_weight - target_weight
+        )
+
+        if abs(weight_drift) <= threshold:
+            trade_weight = 0.0
+            action = "Hold"
+        else:
+            trade_weight = (
+                target_weight - current_weight
+            )
+
+            if trade_weight > 0:
+                action = "Buy"
+            else:
+                action = "Sell"
+
+        trades[ticker] = {
+            "trade_weight": trade_weight,
+            "action": action,
+        }
+
+    return trades

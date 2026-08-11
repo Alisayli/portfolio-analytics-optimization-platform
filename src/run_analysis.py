@@ -25,6 +25,9 @@ from analytics import (
     calculate_treynor_ratio,
     calculate_upside_capture_ratio,
     calculate_value_at_risk,
+    calculate_current_portfolio_weights,
+    calculate_rebalancing_recommendations,
+    calculate_rebalancing_trades,
 )
 
 from download_data import (
@@ -432,6 +435,58 @@ def calculate_market_risk_analytics(
         "downside_capture_ratio": downside_capture_ratio,
         "active_return": active_return,
     }   
+def calculate_rebalancing_analytics(
+    price_data: pd.DataFrame,
+    target_weights: dict,
+    threshold: float = 0.05,
+) -> dict:
+    """
+    Calculate portfolio rebalancing analytics.
+
+    Args:
+        price_data:
+            DataFrame containing historical adjusted close prices.
+        target_weights:
+            Dictionary containing target portfolio weights.
+        threshold:
+            Absolute weight-drift threshold required
+            to trigger a rebalance recommendation.
+
+    Returns:
+        Dictionary containing current weights,
+        recommendations, trades, and whether
+        rebalancing is required.
+    """
+
+    current_weights = calculate_current_portfolio_weights(
+        price_data=price_data,
+        initial_weights=target_weights,
+    )
+
+    recommendations = calculate_rebalancing_recommendations(
+        target_weights=target_weights,
+        current_weights=current_weights,
+        threshold=threshold,
+    )
+
+    trades = calculate_rebalancing_trades(
+        target_weights=target_weights,
+        current_weights=current_weights,
+    )
+
+    portfolio_needs_rebalancing = any(
+        result["action"] != "Hold"
+        for result in recommendations.values()
+    )
+
+    return {
+        "current_weights": current_weights,
+        "recommendations": recommendations,
+        "trades": trades,
+        "portfolio_needs_rebalancing": (
+            portfolio_needs_rebalancing
+        ),
+    }
     
     
 def run_optimization_and_forecast(
@@ -731,6 +786,26 @@ def main() -> None:
         risk_free_rate=risk_free_rate,
         beta=beta,
     )
+    rebalancing_analytics = calculate_rebalancing_analytics(
+        price_data=price_data,
+        target_weights=validated_weights,
+    )
+
+    current_weights = rebalancing_analytics[
+        "current_weights"
+    ]
+
+    rebalancing_recommendations = rebalancing_analytics[
+        "recommendations"
+    ]
+
+    rebalancing_trades = rebalancing_analytics[
+        "trades"
+    ]
+
+    portfolio_needs_rebalancing = rebalancing_analytics[
+        "portfolio_needs_rebalancing"
+    ]
     logger.info(
         "Running optimization and Monte Carlo forecast."
     )
@@ -1080,6 +1155,14 @@ def main() -> None:
         "jensens_alpha": jensens_alpha,
         "tracking_error": tracking_error,
         "information_ratio": information_ratio,
+        "current_weights": current_weights,
+        "rebalancing_recommendations": (
+            rebalancing_recommendations
+        ),
+        "rebalancing_trades": rebalancing_trades,
+        "portfolio_needs_rebalancing": (
+            portfolio_needs_rebalancing
+        ),
         "largest_contributor": largest_contributor,
         "largest_detractor": largest_detractor,
     }
@@ -1246,6 +1329,30 @@ def main() -> None:
         print(
             "Information ratio: N/A "
             "(requires at least 252 daily observations)"
+        )
+    print("\nPortfolio rebalancing:")
+
+    print(
+        "Rebalancing required: "
+        f"{'Yes' if portfolio_summary['portfolio_needs_rebalancing'] else 'No'}"
+    )
+
+    for ticker, recommendation in (
+        portfolio_summary[
+            "rebalancing_recommendations"
+        ].items()
+    ):
+        trade = portfolio_summary[
+            "rebalancing_trades"
+        ][ticker]
+
+        print(
+            f"\n{ticker}: "
+            f"Target={recommendation['target_weight']:.2%}, "
+            f"Current={recommendation['current_weight']:.2%}, "
+            f"Drift={recommendation['weight_drift']:.2%}, "
+            f"Action={recommendation['action']}, "
+            f"Trade={trade['trade_weight']:.2%}"
         )
     print("\nArithmetic contribution by asset:")
 
