@@ -5,6 +5,7 @@ from pathlib import Path
 import pandas as pd
 
 from analytics import (
+    calculate_active_return,
     calculate_annualized_return,
     calculate_annualized_volatility,
     calculate_beta,
@@ -12,6 +13,7 @@ from analytics import (
     calculate_capm_expected_return,
     calculate_conditional_value_at_risk,
     calculate_daily_returns,
+    calculate_downside_capture_ratio,
     calculate_drawdown,
     calculate_information_ratio,
     calculate_jensens_alpha,
@@ -21,6 +23,7 @@ from analytics import (
     calculate_total_return,
     calculate_tracking_error,
     calculate_treynor_ratio,
+    calculate_upside_capture_ratio,
     calculate_value_at_risk,
 )
 
@@ -401,7 +404,20 @@ def calculate_market_risk_analytics(
         benchmark_return=benchmark_annualized_return,
         tracking_error=tracking_error,
     )
+    upside_capture_ratio = calculate_upside_capture_ratio(
+        portfolio_returns=portfolio_returns,
+        benchmark_returns=benchmark_returns,
+    )
 
+    downside_capture_ratio = calculate_downside_capture_ratio(
+        portfolio_returns=portfolio_returns,
+        benchmark_returns=benchmark_returns,
+    )
+
+    active_return = calculate_active_return(
+        portfolio_return=annualized_portfolio_return,
+        benchmark_return=benchmark_annualized_return,
+    )
     return {
         "benchmark_returns": benchmark_returns,
         "benchmark_annualized_return": (
@@ -412,7 +428,12 @@ def calculate_market_risk_analytics(
         "jensens_alpha": jensens_alpha,
         "tracking_error": tracking_error,
         "information_ratio": information_ratio,
+        "upside_capture_ratio": upside_capture_ratio,
+        "downside_capture_ratio": downside_capture_ratio,
+        "active_return": active_return,
     }   
+    
+    
 def run_optimization_and_forecast(
     optimization_asset_returns: pd.DataFrame,
     validated_weights: dict,
@@ -690,7 +711,18 @@ def main() -> None:
 
     information_ratio = market_risk_analytics[
         "information_ratio"
-    ]   
+    ]
+    upside_capture_ratio = market_risk_analytics[
+        "upside_capture_ratio"
+    ]
+
+    downside_capture_ratio = market_risk_analytics[
+        "downside_capture_ratio"
+    ]
+
+    active_return = market_risk_analytics[
+        "active_return"
+    ]
     market_metrics_available = (
         len(portfolio_returns) >= 252
     )
@@ -1041,6 +1073,9 @@ def main() -> None:
             benchmark_annualized_return
         ),
         "beta": beta,
+        "upside_capture_ratio": upside_capture_ratio,
+        "downside_capture_ratio": downside_capture_ratio,
+        "active_return": active_return,
         "capm_expected_return": capm_expected_return,
         "jensens_alpha": jensens_alpha,
         "tracking_error": tracking_error,
@@ -1156,10 +1191,21 @@ def main() -> None:
         f"Benchmark annualized return: "
         f"{portfolio_summary['benchmark_annualized_return']:.2%}"
     )
-
+    print(
+        f"Active return: "
+        f"{portfolio_summary['active_return']:.2%}"
+    )
     print(
         f"Portfolio beta: "
         f"{portfolio_summary['beta']:.2f}"
+    )
+    print(
+        f"Upside capture ratio: "
+        f"{portfolio_summary['upside_capture_ratio']:.2%}"
+    )
+    print(
+        f"Downside capture ratio: "
+        f"{portfolio_summary['downside_capture_ratio']:.2%}"
     )
     print(
     f"Treynor ratio: "

@@ -315,6 +315,9 @@ def build_risk_sheet(
     worksheet["A18"] = "Sortino Ratio"
     worksheet["A19"] = "Calmar Ratio"
     worksheet["A20"] = "Treynor Ratio"
+    worksheet["A21"] = "Active Return"
+    worksheet["A22"] = "Upside Capture Ratio"
+    worksheet["A23"] = "Downside Capture Ratio"
 
     worksheet["B4"] = portfolio_summary[
     
@@ -380,6 +383,15 @@ def build_risk_sheet(
     worksheet["B20"] = portfolio_summary[
         "treynor_ratio"
     ]
+    worksheet["B21"] = portfolio_summary[
+        "active_return"
+    ]
+    worksheet["B22"] = portfolio_summary[
+        "upside_capture_ratio"
+    ]
+    worksheet["B23"] = portfolio_summary[
+        "downside_capture_ratio"
+    ]
     worksheet.merge_cells("A1:B1")
 
     worksheet["A1"].fill = title_fill
@@ -392,7 +404,7 @@ def build_risk_sheet(
         cell.font = header_font
         cell.alignment = header_alignment
 
-    for row_number in range(4, 21):
+    for row_number in range(4, 24):
         worksheet[f"A{row_number}"].font = label_font
 
     worksheet["B4"].number_format = "0.00%"
@@ -412,13 +424,16 @@ def build_risk_sheet(
     worksheet["B18"].number_format = "0.00"
     worksheet["B19"].number_format = "0.00"
     worksheet["B20"].number_format = "0.00"
+    worksheet["B21"].number_format = "0.00%"
+    worksheet["B22"].number_format = "0.00%"
+    worksheet["B23"].number_format = "0.00%"
 
     if worksheet["B6"].value < 0:
         worksheet["B6"].font = negative_font
 
     apply_thin_borders(
         worksheet=worksheet,
-        cell_range="A3:B20",
+        cell_range="A3:B23",
     )
 
     auto_size_columns(worksheet)

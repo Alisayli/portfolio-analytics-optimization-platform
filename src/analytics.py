@@ -759,3 +759,160 @@ def calculate_treynor_ratio(
     )
 
     return float(treynor_ratio)
+
+
+def calculate_upside_capture_ratio(
+    portfolio_returns: pd.Series,
+    benchmark_returns: pd.Series,
+) -> float:
+    """
+    Calculate the upside capture ratio.
+
+    Args:
+        portfolio_returns:
+            Series containing daily portfolio returns.
+        benchmark_returns:
+            Series containing daily benchmark returns.
+
+    Returns:
+        Upside capture ratio as a decimal.
+
+    Raises:
+        ValueError: If aligned return data is insufficient or
+        there are no positive benchmark-return observations.
+    """
+
+    aligned_returns = pd.concat(
+        [portfolio_returns, benchmark_returns],
+        axis=1,
+        join="inner",
+    ).dropna()
+
+    if aligned_returns.empty:
+        raise ValueError(
+            "Aligned return data cannot be empty."
+        )
+
+    portfolio_series = aligned_returns.iloc[:, 0]
+    benchmark_series = aligned_returns.iloc[:, 1]
+
+    positive_benchmark_mask = (
+        benchmark_series > 0
+    )
+
+    if not positive_benchmark_mask.any():
+        raise ValueError(
+            "No positive benchmark-return observations are available."
+        )
+
+    portfolio_upside_return = portfolio_series[
+        positive_benchmark_mask
+    ].mean()
+
+    benchmark_upside_return = benchmark_series[
+        positive_benchmark_mask
+    ].mean()
+
+    if benchmark_upside_return == 0:
+        raise ValueError(
+            "Benchmark upside return must be non-zero."
+        )
+
+    upside_capture_ratio = (
+        portfolio_upside_return
+        / benchmark_upside_return
+    )
+
+    return float(upside_capture_ratio)
+
+
+def calculate_downside_capture_ratio(
+    portfolio_returns: pd.Series,
+    benchmark_returns: pd.Series,
+) -> float:
+    """
+    Calculate the downside capture ratio.
+
+    Args:
+        portfolio_returns:
+            Series containing daily portfolio returns.
+        benchmark_returns:
+            Series containing daily benchmark returns.
+
+    Returns:
+        Downside capture ratio as a decimal.
+
+    Raises:
+        ValueError: If aligned return data is insufficient or
+        there are no negative benchmark-return observations.
+    """
+
+    aligned_returns = pd.concat(
+        [portfolio_returns, benchmark_returns],
+        axis=1,
+        join="inner",
+    ).dropna()
+
+    if aligned_returns.empty:
+        raise ValueError(
+            "Aligned return data cannot be empty."
+        )
+
+    portfolio_series = aligned_returns.iloc[:, 0]
+    benchmark_series = aligned_returns.iloc[:, 1]
+
+    negative_benchmark_mask = (
+        benchmark_series < 0
+    )
+
+    if not negative_benchmark_mask.any():
+        raise ValueError(
+            "No negative benchmark-return observations are available."
+        )
+
+    portfolio_downside_return = portfolio_series[
+        negative_benchmark_mask
+    ].mean()
+
+    benchmark_downside_return = benchmark_series[
+        negative_benchmark_mask
+    ].mean()
+
+    if benchmark_downside_return == 0:
+        raise ValueError(
+            "Benchmark downside return must be non-zero."
+        )
+
+    downside_capture_ratio = (
+        portfolio_downside_return
+        / benchmark_downside_return
+    )
+
+    return float(downside_capture_ratio)
+
+def calculate_active_return(
+    portfolio_return: float,
+    benchmark_return: float,
+) -> float:
+    """
+    Calculate benchmark-relative active return.
+
+    Args:
+        portfolio_return:
+            Annualized portfolio return as a decimal.
+        benchmark_return:
+            Annualized benchmark return as a decimal.
+
+    Returns:
+        Active return as a decimal.
+    """
+
+    active_return = (
+        portfolio_return
+        - benchmark_return
+    )
+
+    return float(active_return)
+
+
+
