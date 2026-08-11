@@ -306,9 +306,15 @@ def build_risk_sheet(
     worksheet["A9"] = "95% Historical CVaR"
     worksheet["A10"] = "99% Historical VaR"
     worksheet["A11"] = "99% Historical CVaR"
+    worksheet["A12"] = "Benchmark Annualized Return"
+    worksheet["A13"] = "Portfolio Beta"
+    worksheet["A14"] = "CAPM Expected Return"
+    worksheet["A15"] = "Jensen's Alpha"
+    worksheet["A16"] = "Tracking Error"
+    worksheet["A17"] = "Information Ratio"
+
     worksheet["B4"] = portfolio_summary[
-        
-        
+    
         "annualized_volatility"
     ]
     worksheet["B5"] = portfolio_summary[
@@ -332,7 +338,36 @@ def build_risk_sheet(
     worksheet["B11"] = portfolio_summary[
         "conditional_value_at_risk_99"
     ]
-    
+    worksheet["B12"] = portfolio_summary[
+        "benchmark_annualized_return"
+    ]
+    worksheet["B13"] = portfolio_summary[
+        "beta"
+    ]
+    if portfolio_summary["market_metrics_available"]:
+        worksheet["B14"] = portfolio_summary[
+            "capm_expected_return"
+        ]
+        worksheet["B15"] = portfolio_summary[
+            "jensens_alpha"
+        ]
+        worksheet["B17"] = portfolio_summary[
+            "information_ratio"
+        ]
+    else:
+        worksheet["B14"] = (
+            "N/A - requires at least 252 observations"
+        )
+        worksheet["B15"] = (
+            "N/A - requires at least 252 observations"
+        )
+        worksheet["B17"] = (
+            "N/A - requires at least 252 observations"
+        )
+
+    worksheet["B16"] = portfolio_summary[
+        "tracking_error"
+    ]
     worksheet.merge_cells("A1:B1")
 
     worksheet["A1"].fill = title_fill
@@ -345,7 +380,7 @@ def build_risk_sheet(
         cell.font = header_font
         cell.alignment = header_alignment
 
-    for row_number in range(4, 12):
+    for row_number in range(4, 18):
         worksheet[f"A{row_number}"].font = label_font
 
     worksheet["B4"].number_format = "0.00%"
@@ -356,13 +391,19 @@ def build_risk_sheet(
     worksheet["B9"].number_format = "0.00%"
     worksheet["B10"].number_format = "0.00%"
     worksheet["B11"].number_format = "0.00%"
+    worksheet["B12"].number_format = "0.00%"
+    worksheet["B13"].number_format = "0.00"
+    worksheet["B14"].number_format = "0.00%"
+    worksheet["B15"].number_format = "0.00%"
+    worksheet["B16"].number_format = "0.00%"
+    worksheet["B17"].number_format = "0.00"
 
     if worksheet["B6"].value < 0:
         worksheet["B6"].font = negative_font
 
     apply_thin_borders(
         worksheet=worksheet,
-        cell_range="A3:B11",
+        cell_range="A3:B17",
     )
 
     auto_size_columns(worksheet)

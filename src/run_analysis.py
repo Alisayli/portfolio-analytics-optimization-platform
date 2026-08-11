@@ -7,13 +7,20 @@ import pandas as pd
 from analytics import (
     calculate_annualized_return,
     calculate_annualized_volatility,
+    calculate_beta,
+    calculate_capm_expected_return,
     calculate_conditional_value_at_risk,
+    calculate_daily_returns,
     calculate_drawdown,
+    calculate_information_ratio,
+    calculate_jensens_alpha,
     calculate_maximum_drawdown,
     calculate_sharpe_ratio,
     calculate_total_return,
+    calculate_tracking_error,
     calculate_value_at_risk,
 )
+
 from download_data import (
     download_multiple_adjusted_closes,
     download_risk_free_rate,
@@ -323,7 +330,86 @@ def calculate_portfolio_analytics(
         
         
     }
-    
+def calculate_market_risk_analytics(
+    portfolio_returns: pd.Series,
+    benchmark_prices: pd.Series,
+    annualized_portfolio_return: float,
+    risk_free_rate: float,
+) -> dict:
+    """
+    Calculate benchmark-relative market risk analytics.
+
+    Args:
+        portfolio_returns:
+            Series containing daily portfolio returns.
+        benchmark_prices:
+            Series containing historical benchmark prices.
+        annualized_portfolio_return:
+            Annualized portfolio return as a decimal.
+        risk_free_rate:
+            Annualized risk-free rate as a decimal.
+
+    Returns:
+        Dictionary containing benchmark-relative risk metrics.
+    """
+
+    benchmark_returns = calculate_daily_returns(
+        benchmark_prices
+    )
+
+    benchmark_total_return = calculate_total_return(
+        benchmark_prices
+    )
+
+    benchmark_annualized_return = (
+        calculate_annualized_return(
+            total_return=benchmark_total_return,
+            number_of_periods=len(benchmark_returns),
+        )
+    )
+
+    beta = calculate_beta(
+        portfolio_returns=portfolio_returns,
+        benchmark_returns=benchmark_returns,
+    )
+
+    capm_expected_return = (
+        calculate_capm_expected_return(
+            beta=beta,
+            risk_free_rate=risk_free_rate,
+            market_return=benchmark_annualized_return,
+        )
+    )
+
+    jensens_alpha = calculate_jensens_alpha(
+        actual_portfolio_return=(
+            annualized_portfolio_return
+        ),
+        capm_expected_return=capm_expected_return,
+    )
+
+    tracking_error = calculate_tracking_error(
+        portfolio_returns=portfolio_returns,
+        benchmark_returns=benchmark_returns,
+    )
+
+    information_ratio = calculate_information_ratio(
+        portfolio_return=annualized_portfolio_return,
+        benchmark_return=benchmark_annualized_return,
+        tracking_error=tracking_error,
+    )
+
+    return {
+        "benchmark_returns": benchmark_returns,
+        "benchmark_annualized_return": (
+            benchmark_annualized_return
+        ),
+        "beta": beta,
+        "capm_expected_return": capm_expected_return,
+        "jensens_alpha": jensens_alpha,
+        "tracking_error": tracking_error,
+        "information_ratio": information_ratio,
+    }   
 def run_optimization_and_forecast(
     optimization_asset_returns: pd.DataFrame,
     validated_weights: dict,
@@ -574,6 +660,37 @@ def main() -> None:
         start_date=start_date,
         end_date=end_date,
     )
+    market_risk_analytics = calculate_market_risk_analytics(
+        portfolio_returns=portfolio_returns,
+        benchmark_prices=benchmark_prices,
+        annualized_portfolio_return=annualized_return,
+        risk_free_rate=risk_free_rate,
+    )
+
+    benchmark_annualized_return = market_risk_analytics[
+        "benchmark_annualized_return"
+    ]
+
+    beta = market_risk_analytics["beta"]
+
+    capm_expected_return = market_risk_analytics[
+        "capm_expected_return"
+    ]
+
+    jensens_alpha = market_risk_analytics[
+        "jensens_alpha"
+    ]
+
+    tracking_error = market_risk_analytics[
+        "tracking_error"
+    ]
+
+    information_ratio = market_risk_analytics[
+        "information_ratio"
+    ]   
+    market_metrics_available = (
+        len(portfolio_returns) >= 252
+    ) 
     logger.info(
         "Running optimization and Monte Carlo forecast."
     )
@@ -898,6 +1015,15 @@ def main() -> None:
         "conditional_value_at_risk_99": (
             conditional_value_at_risk_99
         ),
+        "market_metrics_available": market_metrics_available,
+        "benchmark_annualized_return": (
+            benchmark_annualized_return
+        ),
+        "beta": beta,
+        "capm_expected_return": capm_expected_return,
+        "jensens_alpha": jensens_alpha,
+        "tracking_error": tracking_error,
+        "information_ratio": information_ratio,
         "largest_contributor": largest_contributor,
         "largest_detractor": largest_detractor,
     }
@@ -994,8 +1120,55 @@ def main() -> None:
         f"99% Historical CVaR: "
         f"{portfolio_summary['conditional_value_at_risk_99']:.2%}"
     )
-    
+    print("\nMarket risk and benchmark analytics:")
+
+    print(
+        f"Benchmark annualized return: "
+        f"{portfolio_summary['benchmark_annualized_return']:.2%}"
+    )
+
+    print(
+        f"Portfolio beta: "
+        f"{portfolio_summary['beta']:.2f}"
+    )
+
+    if portfolio_summary["market_metrics_available"]:
+        print(
+            f"CAPM expected return: "
+            f"{portfolio_summary['capm_expected_return']:.2%}"
+        )
+
+        print(
+            f"Jensen's Alpha: "
+            f"{portfolio_summary['jensens_alpha']:.2%}"
+        )
+    else:
+        print(
+            "CAPM expected return: N/A "
+            "(requires at least 252 daily observations)"
+        )
+        print(
+            "Jensen's Alpha: N/A "
+            "(requires at least 252 daily observations)"
+        )
+
+    print(
+        f"Tracking error: "
+        f"{portfolio_summary['tracking_error']:.2%}"
+    )
+
+    if portfolio_summary["market_metrics_available"]:
+        print(
+            f"Information ratio: "
+            f"{portfolio_summary['information_ratio']:.2f}"
+        )
+    else:
+        print(
+            "Information ratio: N/A "
+            "(requires at least 252 daily observations)"
+        )
     print("\nArithmetic contribution by asset:")
+
     for ticker, contribution in total_contributions.items():
         print(f"{ticker}: {contribution:.2%}")
 
@@ -1003,6 +1176,7 @@ def main() -> None:
         "\nLargest contributor: "
         f"{portfolio_summary['largest_contributor']}"
     )
+
     print(
         "Largest detractor: "
         f"{portfolio_summary['largest_detractor']}"

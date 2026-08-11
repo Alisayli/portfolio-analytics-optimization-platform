@@ -406,3 +406,198 @@ def calculate_conditional_value_at_risk(
     conditional_value_at_risk = -tail_losses.mean()
 
     return float(conditional_value_at_risk)
+
+def calculate_beta(
+    portfolio_returns: pd.Series,
+    benchmark_returns: pd.Series,
+) -> float:
+    """
+    Calculate portfolio beta relative to a benchmark.
+
+    Args:
+        portfolio_returns: Series containing daily portfolio returns.
+        benchmark_returns: Series containing daily benchmark returns.
+
+    Returns:
+        Portfolio beta.
+
+    Raises:
+        ValueError: If aligned return data is insufficient or
+        benchmark variance is zero.
+    """
+
+    aligned_returns = pd.concat(
+        [portfolio_returns, benchmark_returns],
+        axis=1,
+        join="inner",
+    ).dropna()
+
+    if len(aligned_returns) < 2:
+        raise ValueError(
+            "At least two aligned return observations are required."
+        )
+
+    portfolio_series = aligned_returns.iloc[:, 0]
+    benchmark_series = aligned_returns.iloc[:, 1]
+
+    benchmark_variance = benchmark_series.var(ddof=1)
+
+    if benchmark_variance == 0:
+        raise ValueError(
+            "Benchmark return variance must be greater than zero."
+        )
+
+    covariance = portfolio_series.cov(
+        benchmark_series
+    )
+
+    beta = covariance / benchmark_variance
+
+    return float(beta)
+
+def calculate_capm_expected_return(
+    beta: float,
+    risk_free_rate: float,
+    market_return: float,
+) -> float:
+    """
+    Calculate the CAPM expected return.
+
+    Args:
+        beta: Portfolio beta relative to the benchmark.
+        risk_free_rate: Annualized risk-free rate as a decimal.
+        market_return: Annualized expected market return as a decimal.
+
+    Returns:
+        CAPM expected return as a decimal.
+    """
+
+    market_risk_premium = (
+        market_return - risk_free_rate
+    )
+
+    capm_expected_return = (
+        risk_free_rate
+        + beta * market_risk_premium
+    )
+
+    return float(capm_expected_return)
+
+def calculate_jensens_alpha(
+    actual_portfolio_return: float,
+    capm_expected_return: float,
+) -> float:
+    """
+    Calculate Jensen's Alpha.
+
+    Args:
+        actual_portfolio_return:
+            Actual annualized portfolio return as a decimal.
+        capm_expected_return:
+            CAPM expected portfolio return as a decimal.
+
+    Returns:
+        Jensen's Alpha as a decimal.
+    """
+
+    alpha = (
+        actual_portfolio_return
+        - capm_expected_return
+    )
+
+    return float(alpha)
+
+def calculate_tracking_error(
+    portfolio_returns: pd.Series,
+    benchmark_returns: pd.Series,
+    periods_per_year: int = TRADING_DAYS_PER_YEAR,
+) -> float:
+    """
+    Calculate annualized tracking error relative to a benchmark.
+
+    Args:
+        portfolio_returns:
+            Series containing daily portfolio returns.
+        benchmark_returns:
+            Series containing daily benchmark returns.
+        periods_per_year:
+            Number of trading periods used for annualization.
+
+    Returns:
+        Annualized tracking error as a decimal.
+
+    Raises:
+        ValueError: If aligned return data is insufficient or
+        periods_per_year is invalid.
+    """
+
+    aligned_returns = pd.concat(
+        [portfolio_returns, benchmark_returns],
+        axis=1,
+        join="inner",
+    ).dropna()
+
+    if len(aligned_returns) < 2:
+        raise ValueError(
+            "At least two aligned return observations are required."
+        )
+
+    if periods_per_year <= 0:
+        raise ValueError(
+            "Periods per year must be positive."
+        )
+
+    active_returns = (
+        aligned_returns.iloc[:, 0]
+        - aligned_returns.iloc[:, 1]
+    )
+
+    daily_tracking_error = active_returns.std(
+        ddof=1
+    )
+
+    annualized_tracking_error = (
+        daily_tracking_error
+        * periods_per_year ** 0.5
+    )
+
+    return float(annualized_tracking_error)
+
+def calculate_information_ratio(
+    portfolio_return: float,
+    benchmark_return: float,
+    tracking_error: float,
+) -> float:
+    """
+    Calculate the Information Ratio.
+
+    Args:
+        portfolio_return:
+            Annualized portfolio return as a decimal.
+        benchmark_return:
+            Annualized benchmark return as a decimal.
+        tracking_error:
+            Annualized tracking error as a decimal.
+
+    Returns:
+        Information Ratio.
+
+    Raises:
+        ValueError: If tracking error is zero or negative.
+    """
+
+    if tracking_error <= 0:
+        raise ValueError(
+            "Tracking error must be greater than zero."
+        )
+
+    active_return = (
+        portfolio_return
+        - benchmark_return
+    )
+
+    information_ratio = (
+        active_return / tracking_error
+    )
+
+    return float(information_ratio)
