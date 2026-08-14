@@ -1102,3 +1102,72 @@ def calculate_rebalancing_trades(
         }
 
     return trades
+
+
+def calculate_stress_scenario_return(
+    portfolio_weights: dict,
+    asset_shocks: dict,
+) -> float:
+    """
+    Calculate portfolio return under a stress scenario.
+
+    Args:
+        portfolio_weights:
+            Dictionary containing portfolio weights by ticker.
+        asset_shocks:
+            Dictionary containing scenario returns by ticker.
+
+    Returns:
+        Portfolio stress return as a decimal.
+
+    Raises:
+        ValueError: If portfolio and scenario tickers do not match.
+    """
+
+    if set(portfolio_weights) != set(asset_shocks):
+        raise ValueError(
+            "Portfolio and stress scenario tickers must match."
+        )
+
+    stress_return = sum(
+        portfolio_weights[ticker]
+        * asset_shocks[ticker]
+        for ticker in portfolio_weights
+    )
+
+    return float(stress_return)
+
+def run_stress_scenarios(
+    portfolio_weights: dict,
+    scenarios: dict,
+) -> dict:
+    """
+    Evaluate multiple portfolio stress scenarios.
+
+    Args:
+        portfolio_weights:
+            Dictionary containing portfolio weights by ticker.
+        scenarios:
+            Dictionary mapping scenario names to asset-shock dictionaries.
+
+    Returns:
+        Dictionary mapping scenario names to portfolio stress returns.
+
+    Raises:
+        ValueError: If no scenarios are provided.
+    """
+
+    if not scenarios:
+        raise ValueError(
+            "At least one stress scenario is required."
+        )
+
+    results = {}
+
+    for scenario_name, asset_shocks in scenarios.items():
+        results[scenario_name] = calculate_stress_scenario_return(
+            portfolio_weights=portfolio_weights,
+            asset_shocks=asset_shocks,
+        )
+
+    return results

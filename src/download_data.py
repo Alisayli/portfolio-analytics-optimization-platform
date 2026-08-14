@@ -145,6 +145,7 @@ def download_risk_free_rate(
     start_date: str,
     end_date: str,
     treasury_ticker: str = "^IRX",
+    fallback_rate: float | None = None,
 ) -> float:
     """
     Download the average annualized 13-week Treasury bill yield.
@@ -180,13 +181,19 @@ def download_risk_free_rate(
     )
 
     if treasury_data.empty:
+        if fallback_rate is not None:
+            return float(fallback_rate)
+
         raise ValueError(
-            "No Treasury yield data was returned for the selected period."
-        )
+        "No Treasury yield data was returned for the selected period."
+    )
 
     treasury_data = _flatten_yfinance_columns(treasury_data)
 
     if "Close" not in treasury_data.columns:
+        if fallback_rate is not None:
+            return float(fallback_rate)
+
         raise ValueError(
             "Treasury yield data does not contain a Close column."
         )
@@ -194,9 +201,12 @@ def download_risk_free_rate(
     treasury_yields = treasury_data["Close"].dropna()
 
     if treasury_yields.empty:
+        if fallback_rate is not None:
+            return float(fallback_rate)
+
         raise ValueError(
             "Treasury yield data does not contain valid closing values."
-        )
+    )
 
     average_yield_percentage = treasury_yields.mean()
     average_yield_decimal = average_yield_percentage / 100

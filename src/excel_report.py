@@ -730,6 +730,78 @@ def build_rebalancing_sheet(
     auto_size_columns(worksheet)
     worksheet.freeze_panes = "A6"
 
+def build_stress_testing_sheet(
+    worksheet,
+    portfolio_summary: dict,
+    title_fill,
+    title_font,
+    title_alignment,
+    header_fill,
+    header_font,
+    header_alignment,
+) -> None:
+    """Build and format the Stress Testing worksheet."""
+
+    worksheet["A1"] = "Portfolio Stress Testing"
+    worksheet.merge_cells("A1:G1")
+
+    worksheet["A1"].fill = title_fill
+    worksheet["A1"].font = title_font
+    worksheet["A1"].alignment = title_alignment
+    worksheet.row_dimensions[1].height = 24
+
+    worksheet["A3"] = "Scenario"
+    worksheet["B3"] = "Portfolio Impact"
+    worksheet["C3"] = "AAPL Shock"
+    worksheet["D3"] = "MSFT Shock"
+    worksheet["E3"] = "NVDA Shock"
+    worksheet["F3"] = "AMZN Shock"
+    worksheet["G3"] = "JPM Shock"
+
+    for cell in worksheet[3]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = header_alignment
+
+    stress_scenarios = portfolio_summary[
+        "stress_scenarios"
+    ]
+    stress_results = portfolio_summary[
+        "stress_results"
+    ]
+
+    for row_number, scenario_name in enumerate(
+        stress_scenarios,
+        start=4,
+    ):
+        scenario = stress_scenarios[scenario_name]
+
+        worksheet[f"A{row_number}"] = scenario_name
+        worksheet[f"B{row_number}"] = stress_results[
+            scenario_name
+        ]
+        worksheet[f"C{row_number}"] = scenario["AAPL"]
+        worksheet[f"D{row_number}"] = scenario["MSFT"]
+        worksheet[f"E{row_number}"] = scenario["NVDA"]
+        worksheet[f"F{row_number}"] = scenario["AMZN"]
+        worksheet[f"G{row_number}"] = scenario["JPM"]
+
+        for column in ("B", "C", "D", "E", "F", "G"):
+            worksheet[
+                f"{column}{row_number}"
+            ].number_format = "0.00%"
+
+    last_row = 3 + len(stress_scenarios)
+
+    apply_thin_borders(
+        worksheet=worksheet,
+        cell_range=f"A3:G{last_row}",
+    )
+
+    auto_size_columns(worksheet)
+    worksheet.freeze_panes = "A4"
+
+
 def create_portfolio_workbook(
     portfolio_summary: dict,
     portfolio_weights: dict,
@@ -790,7 +862,9 @@ def create_portfolio_workbook(
     rebalancing_sheet = workbook.create_sheet(
         title="Rebalancing",
     )
-
+    stress_testing_sheet = workbook.create_sheet(
+        title="Stress Testing",
+    )
     optimization_sheet = workbook.create_sheet(
         title="Optimization",
     )
@@ -898,7 +972,16 @@ def create_portfolio_workbook(
         header_alignment=header_alignment,
         label_font=label_font,
     )
-
+    build_stress_testing_sheet(
+        worksheet=stress_testing_sheet,
+        portfolio_summary=portfolio_summary,
+        title_fill=title_fill,
+        title_font=title_font,
+        title_alignment=title_alignment,
+        header_fill=header_fill,
+        header_font=header_font,
+        header_alignment=header_alignment,
+    )
     build_optimization_sheet(
         worksheet=optimization_sheet,
         current_portfolio_statistics=(

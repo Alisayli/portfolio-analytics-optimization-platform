@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 from pathlib import Path
+
 import pandas as pd
 
 from analytics import (
@@ -28,6 +29,7 @@ from analytics import (
     calculate_current_portfolio_weights,
     calculate_rebalancing_recommendations,
     calculate_rebalancing_trades,
+    run_stress_scenarios,
 )
 
 from download_data import (
@@ -82,6 +84,7 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
+
 logger = logging.getLogger(__name__)
 
 def parse_arguments() -> argparse.Namespace:
@@ -119,6 +122,8 @@ def parse_arguments() -> argparse.Namespace:
     )
 
     return parser.parse_args()
+
+
 def load_configuration(
     args: argparse.Namespace,
 ) -> dict:
@@ -157,6 +162,8 @@ def load_configuration(
         ] = args.benchmark.upper()
 
     return config
+
+
 def download_input_data(
     portfolio_weights: dict,
     start_date: str,
@@ -199,6 +206,8 @@ def download_input_data(
         optimization_price_data,
         benchmark_prices,
     )
+
+
 def calculate_portfolio_analytics(
     price_data: pd.DataFrame,
     benchmark_prices: pd.Series,
@@ -286,7 +295,7 @@ def calculate_portfolio_analytics(
     maximum_drawdown = calculate_maximum_drawdown(
         portfolio_value
     )
-    
+
     value_at_risk_95 = calculate_value_at_risk(
         portfolio_returns,
         confidence_level=0.95,
@@ -310,7 +319,7 @@ def calculate_portfolio_analytics(
             confidence_level=0.99,
         )
     )
-    
+
     return {
         "asset_returns": asset_returns,
         "portfolio_returns": portfolio_returns,
@@ -336,8 +345,6 @@ def calculate_portfolio_analytics(
         "conditional_value_at_risk_99": (
             conditional_value_at_risk_99
         ),
-        
-        
     }
 def calculate_market_risk_analytics(
     portfolio_returns: pd.Series,
@@ -434,7 +441,66 @@ def calculate_market_risk_analytics(
         "upside_capture_ratio": upside_capture_ratio,
         "downside_capture_ratio": downside_capture_ratio,
         "active_return": active_return,
-    }   
+    }
+
+
+def calculate_stress_testing_analytics(
+    portfolio_weights: dict,
+) -> dict:
+    """
+    Calculate hypothetical portfolio stress-test results.
+
+    Args:
+        portfolio_weights:
+            Dictionary containing portfolio weights by ticker.
+
+    Returns:
+        Dictionary containing scenario assumptions
+        and resulting portfolio stress returns.
+    """
+
+    stress_scenarios = {
+        "Broad Market Shock": {
+            "AAPL": -0.20,
+            "MSFT": -0.20,
+            "NVDA": -0.20,
+            "AMZN": -0.20,
+            "JPM": -0.20,
+        },
+        "Technology Selloff": {
+            "AAPL": -0.25,
+            "MSFT": -0.25,
+            "NVDA": -0.35,
+            "AMZN": -0.25,
+            "JPM": -0.10,
+        },
+        "Financial Sector Shock": {
+            "AAPL": -0.08,
+            "MSFT": -0.08,
+            "NVDA": -0.10,
+            "AMZN": -0.08,
+            "JPM": -0.30,
+        },
+        "Rate-Sensitive Growth Shock": {
+            "AAPL": -0.18,
+            "MSFT": -0.18,
+            "NVDA": -0.25,
+            "AMZN": -0.20,
+            "JPM": -0.05,
+        },
+    }
+
+    stress_results = run_stress_scenarios(
+        portfolio_weights=portfolio_weights,
+        scenarios=stress_scenarios,
+    )
+
+    return {
+        "stress_scenarios": stress_scenarios,
+        "stress_results": stress_results,
+    }
+
+
 def calculate_rebalancing_analytics(
     price_data: pd.DataFrame,
     target_weights: dict,
@@ -472,6 +538,7 @@ def calculate_rebalancing_analytics(
     trades = calculate_rebalancing_trades(
         target_weights=target_weights,
         current_weights=current_weights,
+        threshold=threshold,
     )
 
     portfolio_needs_rebalancing = any(
@@ -487,8 +554,9 @@ def calculate_rebalancing_analytics(
             portfolio_needs_rebalancing
         ),
     }
-    
-    
+
+
+
 def run_optimization_and_forecast(
     optimization_asset_returns: pd.DataFrame,
     validated_weights: dict,
@@ -599,7 +667,6 @@ def run_optimization_and_forecast(
     }
 
 def main() -> None:
-
     """Run the complete portfolio analytics pipeline."""
     args = parse_arguments()
     logger.info("Starting portfolio analytics pipeline.")
@@ -621,6 +688,10 @@ def main() -> None:
         "analysis"
     ]["benchmark_ticker"]
 
+    fallback_risk_free_rate = config[
+        "risk_free_rate"
+    ]["fallback_rate"]
+
     optimization_start_date = config[
         "optimization"
     ]["start_date"]
@@ -636,7 +707,7 @@ def main() -> None:
     ]["number_of_portfolios"]
 
     optimization_random_seed = config[
-    "optimization"
+        "optimization"
 ]["random_seed"]
 
     monte_carlo_starting_value = config[
@@ -666,7 +737,6 @@ def main() -> None:
         optimization_price_data,
         benchmark_prices,
     ) = download_input_data(
-
         portfolio_weights=portfolio_weights,
         start_date=start_date,
         end_date=end_date,
@@ -674,7 +744,6 @@ def main() -> None:
         optimization_end_date=optimization_end_date,
         benchmark_ticker=benchmark_ticker,
     )
-
 
     optimization_asset_returns = (
         calculate_asset_returns(
@@ -709,7 +778,7 @@ def main() -> None:
         "annualized_return"
     ]
     return_difference = portfolio_analytics[
-    "return_difference"
+        "return_difference"
     ]
     annualized_volatility = portfolio_analytics[
         "annualized_volatility"
@@ -738,6 +807,7 @@ def main() -> None:
     risk_free_rate = download_risk_free_rate(
         start_date=start_date,
         end_date=end_date,
+        fallback_rate=fallback_risk_free_rate,
     )
     market_risk_analytics = calculate_market_risk_analytics(
         portfolio_returns=portfolio_returns,
@@ -805,6 +875,17 @@ def main() -> None:
 
     portfolio_needs_rebalancing = rebalancing_analytics[
         "portfolio_needs_rebalancing"
+    ]
+    stress_testing_analytics = calculate_stress_testing_analytics(
+        portfolio_weights=validated_weights,
+    )
+
+    stress_scenarios = stress_testing_analytics[
+        "stress_scenarios"
+    ]
+
+    stress_results = stress_testing_analytics[
+        "stress_results"
     ]
     logger.info(
         "Running optimization and Monte Carlo forecast."
@@ -1055,12 +1136,10 @@ def main() -> None:
         / "reports"
     )
 
-
     chart_file_path = plot_portfolio_value(
         portfolio_value=portfolio_value,
         output_folder=charts_folder,
     )
-
 
     drawdown_chart_file_path = plot_drawdown(
         portfolio_drawdown=portfolio_drawdown,
@@ -1163,6 +1242,8 @@ def main() -> None:
         "portfolio_needs_rebalancing": (
             portfolio_needs_rebalancing
         ),
+        "stress_scenarios": stress_scenarios,
+        "stress_results": stress_results,
         "largest_contributor": largest_contributor,
         "largest_detractor": largest_detractor,
     }
@@ -1291,9 +1372,9 @@ def main() -> None:
         f"{portfolio_summary['downside_capture_ratio']:.2%}"
     )
     print(
-    f"Treynor ratio: "
-    f"{portfolio_summary['treynor_ratio']:.2f}"
-    )   
+        f"Treynor ratio: "
+        f"{portfolio_summary['treynor_ratio']:.2f}"
+    )
 
     if portfolio_summary["market_metrics_available"]:
         print(
@@ -1330,11 +1411,26 @@ def main() -> None:
             "Information ratio: N/A "
             "(requires at least 252 daily observations)"
         )
+    print("\nStress testing:")
+
+    for scenario_name, stress_return in (
+        portfolio_summary["stress_results"].items()
+    ):
+        print(
+            f"{scenario_name}: "
+            f"{stress_return:.2%}"
+        )
     print("\nPortfolio rebalancing:")
+
+    rebalancing_status = (
+        "Yes"
+        if portfolio_summary["portfolio_needs_rebalancing"]
+        else "No"
+    )
 
     print(
         "Rebalancing required: "
-        f"{'Yes' if portfolio_summary['portfolio_needs_rebalancing'] else 'No'}"
+        f"{rebalancing_status}"
     )
 
     for ticker, recommendation in (
@@ -1424,6 +1520,24 @@ def main() -> None:
         f"{excel_report_file_path}"
     )
     logger.info("Analysis completed successfully.")
+    return {
+        "portfolio_summary": portfolio_summary,
+        "portfolio_value": portfolio_value,
+        "portfolio_weights": validated_weights,
+        "correlation_matrix": correlation_matrix,
+        "processed_data": processed_data,
+        "current_portfolio_statistics": (
+            current_portfolio_statistics
+        ),
+        "maximum_sharpe_portfolio": (
+            exact_maximum_sharpe_portfolio
+        ),
+        "minimum_volatility_portfolio": (
+            exact_minimum_volatility_portfolio
+        ),
+        "monte_carlo_summary": monte_carlo_summary,
+    }
+
 
 if __name__ == "__main__":
     try:

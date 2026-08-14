@@ -11,6 +11,9 @@
     "end_date": "2025-02-01",
     "benchmark_ticker": "SPY"
 },
+"risk_free_rate": {
+    "fallback_rate": 0.042
+},
 "optimization": {
     "start_date": "2020-02-01",
     "maximum_weight": 0.40,
